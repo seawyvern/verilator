@@ -3683,7 +3683,9 @@ class ConstVisitor final : public VNVisitor {
             // Finally sort by edge, AFTER variable, as we want multiple edges for same var
             // adjacent. note the SenTree optimizer requires this order (more general first,
             // less general last)
-            return lhsp->edgeType() < rhsp->edgeType();
+            if (lhsp->edgeType() != rhsp->edgeType()) return lhsp->edgeType() < rhsp->edgeType();
+            // Unconditional terms before 'iff' terms, as the former subsume the latter
+            return !lhsp->condp() && rhsp->condp();
         }
     };
 
@@ -3730,6 +3732,11 @@ class ConstVisitor final : public VNVisitor {
                 if (!lSenp || !rSenp) continue;
 
                 if (lSenp->sameGateTree(rSenp)) {
+                    const AstNodeExpr* const lCondp = lItemp->condp();
+                    const AstNodeExpr* const rCondp = rItemp->condp();
+                    const bool sameCond
+                        = lCondp ? (rCondp && lCondp->sameGateTree(rCondp)) : !rCondp;
+                    if (!sameCond) continue;
                     // POSEDGE or NEGEDGE -> BOTHEDGE. (We've sorted POSEDGE, before NEGEDGE, so we
                     // do not need to test for the opposite orders.)
                     if (lItemp->edgeType() == VEdgeType::ET_POSEDGE
@@ -3738,7 +3745,6 @@ class ConstVisitor final : public VNVisitor {
                         lItemp->edgeType(VEdgeType::ET_BOTHEDGE);
                         rItemp->edgeType(VEdgeType::ET_BOTHEDGE);
                     }
-
                     // Remove identical expressions
                     if (lItemp->edgeType() == rItemp->edgeType()) {
                         VL_DO_DANGLING(pushDeletep(rItemp->unlinkFrBack()), rItemp);
