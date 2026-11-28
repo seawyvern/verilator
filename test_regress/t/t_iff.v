@@ -18,6 +18,17 @@ module t (
   // End of automatics
   Test test (.*);
 
+  // Multi-bit iff condition is true when non-zero (IEEE 1800-2023 9.4.2.3)
+  logic [1:0] wide_en = 2'b10;
+  int wide_cnt = 0;
+  // verilator lint_off WIDTHTRUNC
+  always @(posedge clk iff wide_en) wide_cnt <= wide_cnt + 1;
+  // Multi-bit iff condition that is false,
+  logic [1:0] wide_off = 2'b00;
+  int off_cnt = 0;
+  always @(posedge clk iff wide_off) off_cnt <= off_cnt + 1;
+  // verilator lint_on WIDTHTRUNC
+
   // Test loop
   always @(posedge clk) begin
 `ifdef TEST_VERBOSE
@@ -39,6 +50,8 @@ module t (
     else if (cyc == 99) begin
       $write("[%0t] cyc==%0d crc=%x sum=%x\n", $time, cyc, crc, sum);
       if (crc !== 64'hc77bb9b3784ea091) $stop;
+      if (wide_cnt != cyc) $stop;
+      if (off_cnt != 0) $stop;
       // What checksum will we end up with (above print should match)
       `define EXPECTED_SUM 64'hd55eb7da9ba3354a
       if (sum !== `EXPECTED_SUM) $stop;
